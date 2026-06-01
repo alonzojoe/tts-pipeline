@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
+from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
 
 # ElevenLabs raises ApiError for HTTP-level problems (401, 429, quota, etc.).
@@ -48,6 +49,12 @@ FALLBACK_OUTPUT_FORMAT = "mp3_22050_32"
 
 # Flash pricing is ~0.5 credits per character. Used only for the cost estimate.
 CREDITS_PER_CHAR = 0.5
+
+# Speech speed. 1.0 = normal, <1.0 slower, >1.0 faster. ElevenLabs accepts
+# 0.7-1.2; values outside that are clamped (with a warning). Override per-run
+# with the SPEED env var, e.g.  SPEED=1.1 python generate.py
+DEFAULT_SPEED = 1.0
+SPEED_MIN, SPEED_MAX = 0.7, 1.2
 
 INPUT_DIR = Path("input")
 OUTPUT_DIR = Path("out")
@@ -131,13 +138,31 @@ def resolve_voice_id(client: ElevenLabs) -> str:
     )
 
 
-def synthesize(client: ElevenLabs, voice_id: str, text: str, output_format: str):
+def resolve_speed() -> float:
+    """Read SPEED from env (default DEFAULT_SPEED), clamped to the allowed range."""
+    raw = os.getenv("SPEED", "").strip()
+    if not raw:
+        return DEFAULT_SPEED
+    try:
+        speed = float(raw)
+    except ValueError:
+        print(f"  SPEED='{raw}' is not a number; using default {DEFAULT_SPEED}.")
+        return DEFAULT_SPEED
+    if speed < SPEED_MIN or speed > SPEED_MAX:
+        clamped = max(SPEED_MIN, min(SPEED_MAX, speed))
+        print(f"  SPEED={speed} is outside {SPEED_MIN}-{SPEED_MAX}; clamping to {clamped}.")
+        return clamped
+    return speed
+
+
+def synthesize(client: ElevenLabs, voice_id: str, text: str, output_format: str, speed: float):
     """Call the TTS API; returns a stream of audio byte chunks."""
     return client.text_to_speech.convert(
         voice_id=voice_id,
         text=text,
         model_id=MODEL_ID,
         output_format=output_format,
+        voice_settings=VoiceSettings(speed=speed),
     )
 
 
@@ -205,11 +230,13 @@ def main() -> None:
     overwriting = out_path.exists()
 
     # --- Free-tier awareness: report size and estimated cost before spending. -
+    speed = resolve_speed()
     char_count = len(text)
     est_credits = round(char_count * CREDITS_PER_CHAR)
     print(f"Input:  {input_path}")
     print(f"Output: {out_path}" + ("  (will OVERWRITE existing file)" if overwriting else ""))
     print(f"Model:  {MODEL_ID}")
+    print(f"Speed:  {speed}")
     print(f"Characters: {char_count:,}")
     print(f"Estimated cost: ~{est_credits:,} credits (at {CREDITS_PER_CHAR} credits/char)")
 
@@ -226,7 +253,7 @@ def main() -> None:
     output_format = PRIMARY_OUTPUT_FORMAT
     print(f"Generating audio ({output_format})...")
     try:
-        audio = synthesize(client, voice_id, text, output_format)
+        audio = synthesize(client, voice_id, text, output_format, speed)
         write_audio(audio, out_path)
     except ApiError as err:
         status = getattr(err, "status_code", None)
@@ -239,7 +266,7 @@ def main() -> None:
             )
             output_format = FALLBACK_OUTPUT_FORMAT
             try:
-                audio = synthesize(client, voice_id, text, output_format)
+                audio = synthesize(client, voice_id, text, output_format, speed)
                 write_audio(audio, out_path)
             except ApiError as err2:
                 die(explain_api_error(err2))

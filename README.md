@@ -106,6 +106,9 @@ Done.
 - **Model** defaults to `eleven_flash_v2_5` — the cheapest option (~0.5 credits/char),
   which roughly **doubles** your free-tier mileage vs. `eleven_multilingual_v2`.
   Change it at the top of [generate.py](generate.py) or via the `MODEL_ID` env var.
+- **Speed** defaults to `1.0` (normal). Set the `SPEED` env var to go slower
+  (`<1.0`) or faster (`>1.0`); ElevenLabs accepts `0.7`–`1.2` and out-of-range
+  values are clamped. Example: `SPEED=1.1 python generate.py`.
 
 ## Free-tier notes
 
