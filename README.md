@@ -16,6 +16,33 @@ tts-pipeline/
 └── README.md
 ```
 
+## Commands (quick reference)
+
+```bash
+# 1. Create & activate the virtual environment (first time only)
+python3 -m venv venv && source venv/bin/activate
+
+# 2. Install dependencies (first time, or after pulling changes)
+pip install -r requirements.txt
+
+# 3. Set up your API key (first time only)
+cp .env.example .env          # then paste your key into .env
+
+# 4. Generate the voiceover (auto-picks the single .txt in input/)
+python generate.py
+
+#    …or target a specific file in input/
+python generate.py myscript.txt
+
+# 5. Play the result
+open out/myscript.mp3         # macOS  (Linux: xdg-open, Windows: start)
+```
+
+> Already set up? In a new terminal you only need:
+> ```bash
+> source venv/bin/activate && python generate.py
+> ```
+
 ## Setup
 
 1. **Create and activate a virtual environment** (Mac/Linux):
