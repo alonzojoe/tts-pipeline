@@ -62,8 +62,8 @@ Output: out/myscript.mp3
 Model:  eleven_flash_v2_5
 Characters: 182
 Estimated cost: ~91 credits (at 0.5 credits/char)
-Resolving voice 'Alex' by name...
-  matched 'Alex' -> abc123...
+Resolving premade voice 'Liam' by name...
+  matched 'Liam - Energetic, Social Media Creator' -> TX3LPaxmHKxFdv7VOQHJ
 Generating audio (mp3_44100_128)...
 Saved out/myscript.mp3 (mp3_44100_128).
 Done.
@@ -71,9 +71,11 @@ Done.
 
 ## Voice & model
 
-- **Voice** defaults to the stock voice **"Alex"** (Young American Male, upbeat),
-  resolved by name via the voices API. To pin a specific voice, set `VOICE_ID`
-  in `.env` and it's used directly (no lookup).
+- **Voice** defaults to the premade voice **"Liam"** (young American male,
+  energetic), resolved by name via the voices API. The lookup is restricted to
+  `category="premade"` because the **free tier cannot use shared/library voices**
+  (those return HTTP 402). To pin any specific voice, set `VOICE_ID` in `.env`
+  and it's used directly (no lookup).
 - **Model** defaults to `eleven_flash_v2_5` — the cheapest option (~0.5 credits/char),
   which roughly **doubles** your free-tier mileage vs. `eleven_multilingual_v2`.
   Change it at the top of [generate.py](generate.py) or via the `MODEL_ID` env var.
