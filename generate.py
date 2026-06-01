@@ -33,9 +33,12 @@ except ImportError:  # pragma: no cover - defensive
 # Override per-run with the MODEL_ID env var.
 MODEL_ID = os.getenv("MODEL_ID", "eleven_flash_v2_5")
 
-# Default stock voice resolved BY NAME via the voices API. Override with the
-# VOICE_ID env var to skip the lookup and use a specific id directly.
-DEFAULT_VOICE_NAME = "Alex"
+# Default stock voice resolved BY NAME via the voices API. We restrict the
+# lookup to "premade" voices because the FREE tier cannot use shared/library
+# voices (the API returns HTTP 402 paid_plan_required for those). "Liam" is a
+# free premade voice that fits "young American male, upbeat / energetic".
+# Override with the VOICE_ID env var to use any specific id directly.
+DEFAULT_VOICE_NAME = "Liam"
 
 # Preferred output format, with a guaranteed free-tier fallback. The 192kbps
 # tiers need a paid plan, so we start at 128 and drop to the lowest mp3 if the
@@ -100,26 +103,30 @@ def resolve_voice_id(client: ElevenLabs) -> str:
         print(f"Using VOICE_ID from env: {override}")
         return override
 
-    print(f"Resolving voice '{DEFAULT_VOICE_NAME}' by name...")
-    response = client.voices.search(search=DEFAULT_VOICE_NAME)
+    print(f"Resolving premade voice '{DEFAULT_VOICE_NAME}' by name...")
+    # category='premade' keeps us to voices the free tier is allowed to use.
+    response = client.voices.search(search=DEFAULT_VOICE_NAME, category="premade")
     voices = getattr(response, "voices", []) or []
 
-    # Prefer an exact (case-insensitive) name match; fall back to first result.
+    # Premade names carry a descriptor, e.g. "Liam - Energetic, Social Media
+    # Creator", so match on the leading name rather than requiring an exact equal.
+    target = DEFAULT_VOICE_NAME.lower()
     for voice in voices:
-        if voice.name and voice.name.lower() == DEFAULT_VOICE_NAME.lower():
+        name = (voice.name or "").lower()
+        if name == target or name.startswith(target + " ") or name.split(" -")[0].strip() == target:
             print(f"  matched '{voice.name}' -> {voice.voice_id}")
             return voice.voice_id
 
     if voices:
         first = voices[0]
         print(
-            f"  no exact match for '{DEFAULT_VOICE_NAME}'; using closest result "
-            f"'{first.name}' -> {first.voice_id}"
+            f"  no exact match for '{DEFAULT_VOICE_NAME}'; using closest premade "
+            f"result '{first.name}' -> {first.voice_id}"
         )
         return first.voice_id
 
     die(
-        f"could not find a voice named '{DEFAULT_VOICE_NAME}'. "
+        f"could not find a premade voice named '{DEFAULT_VOICE_NAME}'. "
         "Set VOICE_ID in .env to a specific voice id instead."
     )
 
@@ -152,10 +159,18 @@ def explain_api_error(err: Exception) -> str:
     elif body:
         detail = str(body)
 
+    code = body.get("code") if isinstance(body, dict) else None
     if status == 401:
         return (
             "authentication failed (401). Your ELEVENLABS_API_KEY looks missing "
             "or invalid. Check the key in your .env file."
+        )
+    if status == 402 or code in ("paid_plan_required", "payment_required"):
+        return (
+            "this requires a paid plan (402). Most likely the chosen voice is a "
+            "shared/library voice that free accounts can't use. Use a premade "
+            "voice (the default 'Liam' is free), or set VOICE_ID in .env to a "
+            f"premade voice id. Details: {detail}"
         )
     if status == 429:
         return (
@@ -215,8 +230,9 @@ def main() -> None:
         write_audio(audio, out_path)
     except ApiError as err:
         status = getattr(err, "status_code", None)
-        # A bad/unsupported format usually comes back as a 4xx that isn't auth/quota.
-        if status not in (401, 429) and output_format != FALLBACK_OUTPUT_FORMAT:
+        # A bad/unsupported format usually comes back as a 4xx that isn't
+        # auth/quota/payment — only those genuinely warrant a format retry.
+        if status not in (401, 402, 429) and output_format != FALLBACK_OUTPUT_FORMAT:
             print(
                 f"  format '{output_format}' was rejected; "
                 f"falling back to '{FALLBACK_OUTPUT_FORMAT}'."
