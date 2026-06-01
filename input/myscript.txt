@@ -1,0 +1,1 @@
+Hey there! This is a sample script for the ElevenLabs text-to-speech pipeline. Replace the contents of this file with your own words, then run python generate.py to hear it spoken aloud.
