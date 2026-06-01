@@ -1,0 +1,15 @@
+# Secrets — never commit your real API key
+.env
+
+# Generated audio
+out/*.mp3
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.Python
+*.egg-info/
+
+# OS / editor noise
+.DS_Store
